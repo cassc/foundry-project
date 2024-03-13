@@ -14,3 +14,4 @@ docs/
 .env
 g
 /src/crytic-export/
+/broadcast/
