@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-import "forge-std/Test.sol";
+import "forge-std/Script.sol";
 
 interface DelegateERC20 {
   function delegateTransfer(address to, uint256 value, address origSender) external returns (bool);
@@ -46,8 +46,6 @@ contract MyBot is IDetectionBot {
     function handleTransaction(address user, bytes calldata msgData) external override {
         (address to, uint value, address from) = abi.decode(msgData[4:], (address, uint256, address));
         console.log("sweeping token from %s to %s amount %s", from, to, value);
-
-        // prevent the sweptTokensRecipient to take the DET tokens
         CryptoVault vault = CryptoVault(from);
         if (to == vault.sweptTokensRecipient()) {
             forta.raiseAlert(user);
@@ -55,51 +53,26 @@ contract MyBot is IDetectionBot {
     }
 }
 
-contract AttackerTest is Test {
+contract DoubleEntryPointScript is Script {
     function setUp() public{
-        vm.createSelectFork("sepolia", 5479616);
+        vm.createSelectFork("sepolia");
     }
 
-    function transfer(address _to, uint amount) public returns (bool){
-        // msg.sender is vault
-        return true;
-    }
+    function run() external{
+        // address detAddress = 0x79da080684B9Bdc99B2385a77A289C3B78752Acd;
+        // DoubleEntryPoint det = DoubleEntryPoint(detAddress); // underlying
+        // CryptoVault vault = det.cryptoVault();
+        // IForta forta = det.forta();
 
-    function balanceOf(address account) public view returns (uint256){
-        return 100;
-    }
+        // console.log("recipient: %s", vault.sweptTokensRecipient());
 
+        // MyBot myBot = new MyBot(forta);
+        // forta.setDetectionBot(address(myBot));
+        vm.startBroadcast();
+        address naut = 0xa3e7317E591D5A0F1c605be1b3aC4D2ae56104d6;
+        // naut.submitLevelInstance(payable(0x79da080684B9Bdc99B2385a77A289C3B78752Acd));
+        naut.call(abi.encodeWithSignature("submitLevelInstance(address)", 0x79da080684B9Bdc99B2385a77A289C3B78752Acd));
 
-    function test_doubleentrypoint() public{
-        vm.startPrank(0x8AC4E3906688EfE71818531a9e439A7ABFDA0154);
-
-        address detAddress = 0x79da080684B9Bdc99B2385a77A289C3B78752Acd;
-        DoubleEntryPoint det = DoubleEntryPoint(detAddress); // underlying
-        CryptoVault vault = det.cryptoVault();
-        IForta forta = det.forta();
-
-        console.log("recipient: %s", vault.sweptTokensRecipient());
-
-        MyBot myBot = new MyBot(forta);
-        forta.setDetectionBot(address(myBot));
-
-        require(address(det) == detAddress, "Expecting same address");
-
-        LegacyToken legacyToken = det.delegatedFrom();
-
-        vm.label(address(detAddress), "DET");
-        vm.label(address(vault), "vault");
-        vm.label(address(forta), "forta");
-        vm.label(address(legacyToken), "legacyToken");
-        vm.label(address(this), "attacker");
-
-        console.log("DET balance: %s", det.balanceOf(address(vault)));
-        console.log("Legacy balance: %s", legacyToken.balanceOf(address(vault)));
-
-        vm.expectRevert();
-        vault.sweepToken(address(legacyToken));
-
-        // require(0 == det.balanceOf(address(vault)), "Underlying balance should 0");
-
+        vm.stopBroadcast();
     }
 }
