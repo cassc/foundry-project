@@ -39,17 +39,18 @@ interface DoubleEntryPoint {
 
 contract MyBot is IDetectionBot {
     IForta forta;
-    constructor(IForta _forta) {
+    address vault;
+    constructor(IForta _forta, address _vault) {
         forta = _forta;
+        vault = _vault;
      }
 
     function handleTransaction(address user, bytes calldata msgData) external override {
         (address to, uint value, address from) = abi.decode(msgData[4:], (address, uint256, address));
         console.log("sweeping token from %s to %s amount %s", from, to, value);
 
-        // prevent the sweptTokensRecipient to take the DET tokens
-        CryptoVault vault = CryptoVault(from);
-        if (to == vault.sweptTokensRecipient()) {
+        // prevent removing token from the vault
+        if (from == vault) {
             forta.raiseAlert(user);
         }
     }
@@ -80,7 +81,7 @@ contract AttackerTest is Test {
 
         console.log("recipient: %s", vault.sweptTokensRecipient());
 
-        MyBot myBot = new MyBot(forta);
+        MyBot myBot = new MyBot(forta, address(vault));
         forta.setDetectionBot(address(myBot));
 
         require(address(det) == detAddress, "Expecting same address");
